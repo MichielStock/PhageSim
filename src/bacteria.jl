@@ -1,157 +1,76 @@
 #=
 Created on Saturday 28 December 2019
-Last update: Monday 30 March 2020
+Last update: Friday 16 June 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
 
-Implementation of the bacteria. For the moment, does not yet contain latent
-phages.
+Implementation of the bacteria using Agents.jl
 =#
 
-export AbstractBacterium, Bacterium, BactGrid, initbactgrid
-export isbacterium, species, copy, nbacteria, prophage, haslatent
-export density, emptybactgrid, initbactgrid
-export AbstractBacteriaRules, BacteriaRules, HeteroBacteriaRules, ProphageBacteriaRules
-export bacteriaprobs, updatebacteria!
+using Agents
+import Agents: agent_step!
 
+export AbstractBacterium, Bacterium
+export bacteria, prophage, haslatent, species, prophage!
+export AbstractBacteriaRules, BacteriaRules, ProphageBacteriaRules,
+            HeteroBacteriaRules, agent_step!
 
-abstract type AbstractBacterium end
+# BACTERIA TYPE AND FUNCTIONS
+# ---------------------------
 
-struct Bacterium <: AbstractBacterium
+abstract type AbstractBacterium <: AbstractAgent end
+
+mutable struct Bacterium <: AbstractBacterium
+    id::Int
+    pos::Tuple{Int,Int}
     species::Int  # decribes the species of the bacterium
-    phage::Int  # either carries a latent phage (i) or not (0)
+    prophage::Union{Int,Nothing}  # either carries a latent phage (i) or not (0)
 end
 
-Bacterium(species::Int) = Bacterium(species, 0)
+Bacterium(id, pos, species=1) = Bacterium(id, pos, species, nothing)
 
-"""Structure of bacterial grid"""
-BactGrid = Array{Union{Nothing, Bacterium}}
-
-"""
-    emptybactgrid(dims::Int...)
-
-Generates an empty grid for the bacteria.
-"""
-emptybactgrid(dims::Int...) = Array{Union{Nothing, Bacterium}}(nothing, dims...)
+"""Test if agent is a bacterium"""
+bacteria(a::AbstractAgent) = a isa AbstractBacterium
 
 """
-    initbactgrid(dims::Int...; nbacteria::Int=1, nspecies::Int=1)
+    prophage(bact::AbstractBacterium)
 
-Generates an initial grid for the bacteria with `nbacteria` in total of `nspecies`
-different species, randomly distributed over the grid.
+Return the prophage of a bacterium. Return `nothing` if bact has no prophage.
 """
-function initbactgrid(dims::Int...; nbacteria::Int=1, nspecies::Int=1)
-    @assert 0 ≤ nbacteria ≤ prod(dims)
-    grid = emptybactgrid(dims...)
-    C = CartesianIndices(grid)
-    indices = shuffle(C)[1:nbacteria]
-    grid[indices] .= Bacterium.(rand(1:nspecies, nbacteria))
-    return grid
-end
+prophage(bact::AbstractBacterium) = bact.prophage
 
-
-"""Check if a state is a `AbstractBacterium`"""
-isbacterium(state) = state isa AbstractBacterium
 
 """
-    haslatent(bact::Bacterium)
+    haslatent(bact::AbstractBacterium)
 
 Test whether a bacterium has a laten prophage
 """
-haslatent(bact::Bacterium) = bact.phage != 0
+haslatent(bact::AbstractBacterium) = !(bact.prophage isa Nothing)
 
 """
-    prophage(bact::Bacterium)
+    species(bact::AbstractAgent)
 
-Return the prophage of a bacterium. Return `missing` if bact has no prophage.
+Returns the species of a bacterium or phage.
 """
-prophage(bact::Bacterium) = bact.phage == 0 ? missing : bact.phage
-
-"""
-    prophage(bact::Bacterium, i::Int)
-
-Returns a NEW bacterium with a prophage of type `i`.
-"""
-prophage(bact::Bacterium, i::Int) = Bacterium(bact.species, i)
+species(bact::AbstractAgent) = bact.species
 
 """
-    species(bact::Bacterium)
+    prophage!(bact::AbstractBacterium, i::Int)
 
-Returns the species of a bacterium.
+Sets a prophage of species `i` of a bacterium.
 """
-species(bact::Bacterium) = bact.species
-
-"""
-    species(bactgrid::BactGrid)
-
-Returns a list of the species of bacteria in a grid.
-"""
-species(bactgrid::BactGrid) = bactgrid .|> species |> skipmissing |> unique |> sort!
+prophage!(bact::AbstractBacterium, i::Int) = (bact.prophage = i)
 
 """
-    species(bact::Bacterium, sp::Int)
+    species(bact::AbstractBacterium, sp::Int)
 
-Test if `bact` if of species `sp`.
+Test if `bact` is of species `sp`.
 """
-species(bact::Bacterium, sp::Int) = bact.species == sp
+species(bact::AbstractBacterium, sp::Int) = species(bact) == sp
 
-species(::Nothing) = missing
-
-"""
-    copy(bact::Bacterium)
-
-Make a copy of a bacterium.
-"""
-copy(bact::Bacterium) = Bacterium(bact.species, bact.phage)
-
-"""
-    nbacteria(bactgrid::BactGrid)
-
-Counts the number of bacteria in `bactgrid`.
-"""
-nbacteria(bactgrid::BactGrid) = count(isbacterium, bactgrid)
-
-"""
-    nbacteria(bactgrid::BactGrid, sp::Int)
-
-Counts the number of bacteria of species `sp` in `bactgrid`.
-"""
-nbacteria(bactgrid::BactGrid, sp::Int) = count(b->isbacterium(b) && species(b)==sp, bactgrid)
-
-# computing the global and local density of the bacteria
-
-"""
-    density(bactgrid::BactGrid)
-
-Computes the density of the bacteria in the grid, i.e., number of bacteria divided
-by the total size of the grid.
-"""
-density(bactgrid::BactGrid) = nbacteria(bactgrid) / length(bactgrid)
-
-"""
-    density(bactgrid::BactGrid, sp::Int)
-
-Computes the density of bacteria of species `sp` in the grid.
-"""
-density(bactgrid::BactGrid, sp::Int) = nbacteria(bactgrid, sp) / length(bactgrid)
-
-"""
-    density(bactgrid::BactGrid, I::CartesianIndex,
-                        sp::Union{Nothing,Int}=nothing; R::Int=1)
-
-Computes the local density of bacteria (or bacteria of species `sp` if provided)
-in the region with radius `R` around position `I`.
-"""
-function density(bactgrid::BactGrid, I::CartesianIndex,
-                    sp::Union{Nothing,Int}=nothing; R::Int=1)
-    C = CartesianIndices(bactgrid)
-    Ifirst, Ilast = first(C), last(C)
-    IR = R * oneunit(Ifirst)
-    region = max(I-IR, Ifirst):min(I+IR, Ilast)
-    sp isa Nothing && return density(bactgrid[region])
-    density(bactgrid[region], sp)
-end
+# RULES AND BEHAVIOUR
+# -------------------
 
 abstract type AbstractBacteriaRules end
 
@@ -168,13 +87,6 @@ struct BacteriaRules <: AbstractBacteriaRules
         new(prepr, pmove, pdie)
     end
 end
-
-"""
-    bacteriaprobs(br::BacteriaRules, bact::AbstractBacterium)
-
-Get the behaviour parameters for a specific bacterium.
-"""
-bacteriaprobs(br::BacteriaRules, bact::AbstractBacterium) = (br.prepr, br.pmove, br.pdie)
 
 """
 Rules for when species of bacteria might show different behaviours.
@@ -201,27 +113,6 @@ struct ProphageBacteriaRules <: AbstractBacteriaRules
     precover::Float64
 end
 
-
-"""
-By default an infected phage cannot recover.
-"""
-recovers(bact::AbstractBacterium, br::AbstractBacteriaRules) = false
-
-"""
-Computes the probability that a bacterium with a prophage looses recovers.
-"""
-recovers(bact::AbstractBacterium, br::ProphageBacteriaRules) = br.precover > 0.0 && rand() < br.precover
-
-"""
-    bacteriaprobs(br::BacteriaRules, bact::AbstractBacterium)
-
-Get the behaviour parameters for a specific bacterium.
-"""
-function bacteriaprobs(br::HeteroBacteriaRules, bact::AbstractBacterium)
-    sp = species(bact)
-    return (br.prepr[sp], br.pmove[sp], br.pdie[sp])
-end
-
 function BacteriaRules(probsnoinf::Tuple{Float64,Float64,Float64},
                 probsinf::Tuple{Float64,Float64,Float64},
                 precover::Float64=0.0)
@@ -234,48 +125,60 @@ function BacteriaRules(probsnoinf::Tuple{Float64,Float64,Float64},
 end
 
 """
+    bacteriaprobs(br::BacteriaRules, bact::AbstractBacterium)
+
+Get the behaviour parameters for a specific bacterium.
+"""
+bacteriaprobs(bact::AbstractBacterium, br::BacteriaRules) = (br.prepr, br.pmove, br.pdie)
+
+"""
     bacteriaprobs(br::ProphageBacteriaRules, bact::AbstractBacterium)
 
 Get the behaviour parameters depending on whether the bacterium has a prophage
 or not.
 """
-function bacteriaprobs(br::ProphageBacteriaRules, bact::AbstractBacterium)
+bacteriaprobs(bact::AbstractBacterium, br::HeteroBacteriaRules) =
+                    species(bact) |> i -> (br.prepr[i], br.pmove[i], br.pdie[i])
+
+bacteriaprobs(bact::AbstractBacterium, br::ProphageBacteriaRules) =
+        haslatent(bact) ? br.probsinf : br.probsinf
+
+"""
+By default an infected phage cannot recover.
+"""
+recovers(bact::AbstractBacterium, br::AbstractBacteriaRules) = false
+
+"""
+Computes the probability that a bacterium with a prophage looses recovers.
+"""
+recovers(bact::AbstractBacterium, br::ProphageBacteriaRules) = br.precover > 0.0 && rand() < br.precover
+
+
+"""
+    agent_step!(bact::Bacterium, model)
+
+Defines a step of a bacterium.
+"""
+function agent_step!(bact::AbstractBacterium, model)
+    bactrules = br(model.properties)  # get the bacteria rules
+    # if the bacterium has a prophage it might lyse or recover
     if haslatent(bact)
-        return br.probsinf
-    else
-        return br.probsnoinf
+        if recovers(bact)
+            bact.prophage = nothing  # cured
+        else
+            interactrules = ir(model.properties)
+            lyses(bact, interactrules) && lyse(bact, model)
+            return
+        end
     end
-end
-
-function updatebact(s1::AbstractBacterium, s2::AbstractBacterium, bacteriarules::AbstractBacteriaRules)
-    prepr, pmove, pdie = bacteriaprobs(bacteriarules, s1)
-    if rand() < pdie
-        return nothing, s2
-    else
-        return s1, s2
-    end
-end
-
-
-"""
-    updatebact(s1::AbstractBacterium, s2::Nothing, bacteriarules::AbstractBacteriaRules)
-
-Rules for updating the bacteria without the phage component.
-"""
-function updatebact(s1::AbstractBacterium, s2::Nothing, bacteriarules::AbstractBacteriaRules)
-    # get the rules
-    prepr, pmove, pdie = bacteriaprobs(bacteriarules, s1)
+    # get behaviour parameters
+    prepr, pmove, pdie = bacteriaprobs(bact, bactrules)
     r = rand()
-    if r ≤ prepr
-        # reproduce
-        return s1, copy(s1)
-    elseif r ≤ prepr + pmove
-        # move
-        return nothing, s1
-        # die
-    elseif r ≤ prepr + pmove + pdie
-        return nothing, nothing
-    else
-        return s1, s2
+    if r < pmove
+        return move!(bact, model)
+    elseif r < pmove + prepr
+        return reproduce!(bact, model)
+    elseif r < pmove + prepr + pdie
+        return kill_agent!(bact, model)
     end
 end
