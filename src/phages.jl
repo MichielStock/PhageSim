@@ -1,6 +1,6 @@
 #=
 Created on Friday 27 December 2019
-Last update: Friday 14 February 2019
+Last update: Friday 26 June 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -8,9 +8,23 @@ michielfmstock@gmail.com
 Functions to model the spread of the phages.
 =#
 
-using Distributions
 
 export AbstractPhageRules, PhageRules, phagedecay, step_phages!
+
+# PHAGE TYPE AND FUNCTIONS
+# ------------------------
+
+abstract type AbstractPhage <: AbstractAgent end
+
+mutable struct Phage <: AbstractBacterium
+    id::Int
+    pos::Tuple{Int,Int}
+    species::Int  # decribes the species of the phage
+end
+
+# RULES AND BEHAVIOUR
+# -------------------
+
 
 abstract type AbstractPhageRules end
 
@@ -25,60 +39,34 @@ struct PhageRules <: AbstractPhageRules
 end
 
 """
-    phagedecay(nphages, phagerules::PhageRules)
+    decays(phage::AbstractPhage, phagerules::PhageRules)
 
-Samples the number of phages after applying decay
+Decay the phage?
 """
-function phagedecay(nphages, phagerules::PhageRules)
-    nphages == 0 && return nphages
-    psurv = 1.0 - phagerules.pdecay
-    psurv == 0.0 && return 0
-    psurv == 1.0 && return nphages
-    return rand(Binomial(nphages, psurv))
+function decays(phage::AbstractPhage, phagerules::PhageRules)
+    phagerules.pdecay == 0.0 && return false
+    phagerules.pdecay == 1.0 && return true
+    return phagerules.pdecay <= rand()
 end
 
 
-"""
-updatephages!(grid::AbstractArray{T} where {T<:Integer},
-                        phagerules::AbstractPhageRules;
-                        poissonapprox=false,
-                        nsteps::Union{Nothing,Int}=nothing
-                        )
+function agent_step!(phage::AbstractPhage, model)
+    phagerules = pr(model.properties)  # get the phage rules
+    interactionrules = ir(model.properties)  # get the interaction rules
+    move!(phage, model)  # phages always move
+    agents = get_node_agents(phage.pos, model)
+    hosts = filter!(bacteria, agents)
+    for bact in hosts
+        # check if an infection occurs, immediately exit function if so
+        infects!(phage, host, phagerules) && return
+    end
+    # decay phage
+    decays(phage, phagerules) && kill_agent!(phage, model)
+end
 
-Updating the spread of the phages by means of random diffusion and decay as specified by `phagerules`.
-By setting `poissonapprox` to true, a Poisson approximation is used instead of the exact,
-but slower Multinomial distribution.
-"""
-function step_phages!(grid::AbstractArray{T} where {T<:Integer},
-                        phagerules::AbstractPhageRules;
-                        poissonapprox=false,
-                        nsteps::Union{Nothing,Int}=nothing
-                        )
-    ncells = length(grid)
-    R, pdecay = phagerules.R, phagerules.pdecay
-    C = CartesianIndices(grid)
-    Ifirst, Ilast = first(C), last(C)
-    IR = R * oneunit(Ifirst)
-    neigsize = (2R + 1)^2
-    if nsteps isa Nothing
-        nsteps = ncells ÷ neigsize
-    end
-    for i in 1:nsteps
-        # pick a cell
-        I = rand(C)
-        region = max(Ifirst, I - IR):min(Ilast, I + IR)
-        regsize = length(region)
-        nphages = sum(grid[region])
-        nphages > 0 || continue  # only do the next if there are phages
-        if !poissonapprox
-            if pdecay > 0.0
-                nphages = rand(Binomial(nphages, 1.0 - pdecay))
-            end
-            @inbounds grid[region] = rand(Multinomial(nphages, regsize))
-        else
-            avphages = (1.0 - pdecay) * nphages / regsize
-            @inbounds grid[region] = rand(Poisson(avphages), regsize)
-        end
-    end
-    return grid
+function move!(phage::AbstractPhage, model)
+    phagerules = pr(model.properties)
+    neighbors = node_neighbors(phage, model, r=phagerules.R)
+    node = rand(neighbors)
+    move_agent!(phage, node, model)
 end
