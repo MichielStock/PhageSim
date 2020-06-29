@@ -58,7 +58,7 @@ function agent_step!(phage::AbstractPhage, model)
     hosts = filter!(bacteria, agents)
     for bact in hosts
         # check if an infection occurs, immediately exit function if so
-        infects!(phage, host, phagerules) && return
+        infects(phage, host, interactionrules) && return infect!(phage, host, interactionrules, model)
     end
     # decay phage
     decays(phage, phagerules) && kill_agent!(phage, model)

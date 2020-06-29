@@ -1,5 +1,6 @@
 module PhageSim
 
+using Agents
 
 include("grid.jl")
 include("phages.jl")

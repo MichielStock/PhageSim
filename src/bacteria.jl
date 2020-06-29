@@ -8,9 +8,6 @@ michielfmstock@gmail.com
 Implementation of the bacteria using Agents.jl
 =#
 
-using Agents
-import Agents: agent_step!
-
 export AbstractBacterium, Bacterium
 export bacteria, prophage, haslatent, species, prophage!
 export AbstractBacteriaRules, BacteriaRules, ProphageBacteriaRules,
@@ -68,6 +65,10 @@ prophage!(bact::AbstractBacterium, i::Int) = (bact.prophage = i)
 Test if `bact` is of species `sp`.
 """
 species(bact::AbstractBacterium, sp::Int) = species(bact) == sp
+
+
+# TODO: add density function
+
 
 # RULES AND BEHAVIOUR
 # -------------------
@@ -166,9 +167,8 @@ function agent_step!(bact::AbstractBacterium, model)
         if recovers(bact)
             bact.prophage = nothing  # cured
         else
-            interactrules = ir(model.properties)
-            lyses(bact, interactrules) && lyse(bact, model)
-            return
+            interactionrules = ir(model.properties)
+            lyses(bact, interactionrules, model) && return lyse!(bact, model)
         end
     end
     # get behaviour parameters
@@ -180,5 +180,25 @@ function agent_step!(bact::AbstractBacterium, model)
         return reproduce!(bact, model)
     elseif r < pmove + prepr + pdie
         return kill_agent!(bact, model)
+    end
+end
+
+"""Check if there are no bacteria on a node."""
+isfree(node, model) = !any(bacteria, get_node_agents(node, model))
+
+function move!(bact::AbstractBacterium, model)
+    neighbors = node_neighbors(bact, model)
+    node = rand(neighbors)
+    if isfree(node, model)
+        move_agent!(bact, node, model)
+    end
+end
+
+function reproduce!(bact::Bacterium, model)
+    neighbors = node_neighbors(bact, model)
+    node = rand(neighbors)
+    if isfree(node, model)
+        id = nextid(model)
+        add_agent!(Bacterium(id, node, bact.species), model)
     end
 end
