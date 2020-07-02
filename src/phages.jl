@@ -1,6 +1,6 @@
 #=
 Created on Friday 27 December 2019
-Last update: Friday 26 June 2020
+Last update: Thursday 02 July 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -8,19 +8,22 @@ michielfmstock@gmail.com
 Functions to model the spread of the phages.
 =#
 
-
-export AbstractPhageRules, PhageRules, phagedecay, step_phages!
+export AbstractPhage, Phage, phages
+export AbstractPhageRules, PhageRules, phagedecay, agent_step!
 
 # PHAGE TYPE AND FUNCTIONS
 # ------------------------
 
 abstract type AbstractPhage <: AbstractAgent end
 
-mutable struct Phage <: AbstractBacterium
+mutable struct Phage <: AbstractPhage
     id::Int
     pos::Tuple{Int,Int}
     species::Int  # decribes the species of the phage
 end
+
+"""Test if an agent is a phage."""
+phages(a::AbstractAgent) = a isa AbstractPhage
 
 # RULES AND BEHAVIOUR
 # -------------------
@@ -46,7 +49,7 @@ Decay the phage?
 function decays(phage::AbstractPhage, phagerules::PhageRules)
     phagerules.pdecay == 0.0 && return false
     phagerules.pdecay == 1.0 && return true
-    return phagerules.pdecay <= rand()
+    return  rand() ≤ phagerules.pdecay
 end
 
 
@@ -58,7 +61,7 @@ function agent_step!(phage::AbstractPhage, model)
     hosts = filter!(bacteria, agents)
     for bact in hosts
         # check if an infection occurs, immediately exit function if so
-        infects(phage, host, interactionrules) && return infect!(phage, host, interactionrules, model)
+        infects(phage, bact, interactionrules) && return infect!(phage, bact, interactionrules, model)
     end
     # decay phage
     decays(phage, phagerules) && kill_agent!(phage, model)
@@ -66,7 +69,8 @@ end
 
 function move!(phage::AbstractPhage, model)
     phagerules = pr(model.properties)
-    neighbors = node_neighbors(phage, model, r=phagerules.R)
+    # FIXME: R region does not seem to work, also: no change of staying!
+    neighbors = node_neighbors(phage, model)#, r=phagerules.R)
     node = rand(neighbors)
     move_agent!(phage, node, model)
 end

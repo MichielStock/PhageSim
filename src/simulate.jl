@@ -1,6 +1,6 @@
 #=
 Created on Wednesday 26 March 2020
-Last update: Monday 30 March 2020
+Last update: Wednesday 01 July 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -8,126 +8,79 @@ michielfmstock@gmail.com
 Functionality to simulate bacterium-phage interactions.
 =#
 
-export step_bacteria!, simulate!
+export initialize_model, PhageSimRules
+export br, pr, ir
+using Agents
 
-
-"""
-    step_bacteria!(grid::BactGrid,
-                    phagegrids,
-                    bactrules::AbstractBacteriaRules,
-                    phagerules::AbstractPhageRules,
-                    interactionrules::AbstractInteractionRules)
-
-Perform a single step in the bacteria-phage model.
-"""
-function step_bacteria!(grid::BactGrid,
-                phagegrids,
-                bactrules::AbstractBacteriaRules,
-                phagerules::AbstractPhageRules,
-                interactionrules::AbstractInteractionRules)
-    # number of phages
-    nphagetypes = length(phagegrids)
-    # list of phage types, used for effecient shuffling
-    phagetypes = collect(1:nphagetypes)
-    bactcoors = Set(findall(isbacterium, grid))
-    nbacts = length(bactcoors)
-    C = CartesianIndices(grid)
-    Ifirst, Ilast = first(C), last(C)
-    IR = oneunit(Ifirst)
-    for i in 1:nbacts
-        I = rand(bactcoors)
-        sI = bact = grid[I]  # state at position I
-        delete!(bactcoors, I)
-        # first check if the bacterium has a laten phage
-        if haslatent(bact)
-            # if it has a latent phage, it might lyse now
-            if lyses(bact, grid, I, interactionrules::AbstractInteractionRules)
-                # bacterium lyses, bye!
-                phagetype = prophage(bact)
-                phagegrids[phagetype][I] += burstsize(bact, phagetype, interactionrules)
-                grid[I] = nothing
-                sI = nothing
-                continue
-            elseif recovers(bact, bactrules)
-                # remove phage
-                bact = prophage(bact, 0)
-                # add phage to grid
-                grid[I] = bact
-            end
-        else
-            # no latent phage, so check if there are any phages that might attack
-            for phagetype in randperm!(phagetypes)
-                nphages = phagegrids[phagetype][I]
-                # if there are phages, will they infect the bacterium?
-                if nphages > 0 && infects(bact, phagetype, nphages, interactionrules)
-                    # yes, but lysogentic or lytic?
-                    if lysogenic(bact, phagetype, interactionrules)
-                        bact = SI = prophage(bact, phagetype)  # add a prophage
-                        grid[I] = bact
-                        phagegrids[phagetype][I] -= 1
-                    else
-                        grid[I] = nothing  # kill bacterium
-                        phagegrids[phagetype][I] += burstsize(bact, phagetype, interactionrules) - 1
-                    end
-                    break
-                end
-            end
-        end
-        sI = grid[I]
-        isbacterium(sI) || continue  # if killed, skip the rest
-        # determine action
-        neighborhood = max(Ifirst, I-IR):min(Ilast, I+IR)
-        N = randnonident(I, neighborhood)
-        sN = grid[N]
-        sI, sN = updatebact(sI, sN, bactrules)
-        grid[I], grid[N] = sI, sN
-    end
+struct PhageSimRules{BR<:AbstractBacteriaRules,PR<:AbstractPhageRules,
+                            IR<:AbstractInteractionRules}
+    bacteriarules::BR
+    phagerules::PR
+    interactionrules::IR
 end
 
-"""
-    simulate!(grid::BactGrid,
-                    phagegrids,
-                    bactrules::AbstractBacteriaRules,
-                    phagerules::AbstractPhageRules,
-                    interactionrules::AbstractInteractionRules,
-                    nsteps::Int;
-                    resultfun::union{Function,Nothing}=nothing,
-                    store_every::Int=1,
-                    resfunkwargs...
-                    )
-
-Perform a simulation of `nsteps`. Optionally provide a function `resultfun`
-with as inputs the bacteria grid and the phagegrids to store intermediate
-results every `store_every` steps. If `resultfun` is a function with keyword
-arguments, these can also be provided.
-"""
-function simulate!(grid::BactGrid,
-                phagegrids,
-                bactrules::AbstractBacteriaRules,
-                phagerules::AbstractPhageRules,
-                interactionrules::AbstractInteractionRules,
-                nsteps::Int;
-                resultfun::Union{Function,Nothing}=nothing,
-                store_every::Int=1,
-                resfunkwargs...
-                )
-    # should we store any results?
-    if !isnothing(resultfun)
-        # compute the first result
-        res0 = resultfun(grid, phagegrids; resfunkwargs...)
-        results = Array{typeof(res0)}(undef, nsteps ÷ store_every + 1)
-        results[1] = res0
-    end
-    for t in 1:nsteps
-        # update the bacteria
-        step_bacteria!(grid, phagegrids, bactrules, phagerules, interactionrules)
-        # update the phages
-        for phagegrid in phagegrids
-            step_phages!(phagegrid, phagerules)
-        end
-        !isnothing(resultfun) && (t % store_every == 0) && (
-                results[t ÷ store_every + 1] = resultfun(grid, phagegrids; resfunkwargs...)
-        )
-    end
-    !isnothing(resultfun) && return results
+function PhageSimRules(;
+    prepr=0.3,
+    pmove=0.3,
+    pdie=0.1,
+    pdecay=0.05,
+    R=1,
+    Pinf=0.1,
+    burstsize=5,
+    plysogeny=false,
+    plysis=.1,
+    Rqs=0
+    )
+    br = BacteriaRules(prepr, pmove, pdie)
+    pr = PhageRules(pdecay, R)
+    ir = InteractionRules(Pinf, burstsize, plysogeny, plysis, Rqs)
+    return PhageSimRules(br, pr, ir)
 end
+
+br(rules::PhageSimRules) = rules.bacteriarules
+pr(rules::PhageSimRules) = rules.phagerules
+ir(rules::PhageSimRules) = rules.interactionrules
+
+"""
+    initialize_phagesim_model(;
+        n_bacteria = 100,
+        n_phages = 100,
+        dims = (50, 50),
+        n_bact_sp = 1,
+        n_phage_sp = 1)
+
+Initializes a model on a grid.
+"""
+function initialize_model(rules::PhageSimRules;
+    n_bacteria = 100,
+    n_phages = 100,
+    dims = (50, 50),
+    n_bact_sp = 1,
+    n_phage_sp = 1,
+)
+    @assert n_bacteria ≤ prod(dims) "Too many bacteria for the grid"
+    space = GridSpace(dims, moore=true)
+    model = AgentBasedModel(Union{Bacterium,Phage}, space,
+                            scheduler=by_type(true, true), warn=false,
+                            properties=rules)
+    id = 0
+    for _ in 1:n_bacteria
+        id += 1
+        species = rand(1:n_bact_sp)
+        pos = pos = (rand(1:dims[1]), rand(1:dims[2]))
+        bact = Bacterium(id, pos, species)
+        add_agent!(bact, model)
+        move_agent_single!(bact, model)
+    end
+    for _ in 1:n_phages
+        id += 1
+        species = rand(1:n_phage_sp)
+        pos = (rand(1:dims[1]), rand(1:dims[2]))
+        add_agent!(Phage(id, pos, species), model)
+    end
+    return model
+end
+
+
+
+#TODO: make pretty print for this function

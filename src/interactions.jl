@@ -1,6 +1,6 @@
 #=
 Created on Friday 21 Feb 2020
-Last update: Monday 29 June 2020
+Last update: Thursday 02 July 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -10,6 +10,8 @@ Model the interactions between bacteria and their phages
 
 
 export AbstractInteractionRules, InteractionRules
+export lysogenic, lyses
+using Distributions: Poisson
 
 abstract type AbstractInteractionRules end
 
@@ -28,7 +30,7 @@ struct InteractionRules{TI,TB,TLG} <: AbstractInteractionRules
         @assert all(0 .≤ plysogeny .≤ 1) "All values for `plysogeny` should be Booleans or probabilities"
         @assert !(plysogeny isa AbstractVector) || size(Pinf, 2) == length(plysogeny) "`plysogeny` has incorrect size"
         @assert 0 ≤ plysis ≤ 1 "`plysis` should be a valid probability"
-        @assert Rqs ≥ 0 "radius for quorum sensing `R` should be nonzero"
+        @assert Rqs ≥ 0 "radius for quorum sensing `R` should be nonnegative"
         new{typeof(Pinf),typeof(burstsize),typeof(plysogeny)}(Pinf, burstsize, plysogeny,plysis)
     end
 end
@@ -39,6 +41,14 @@ infectiontype(ir::InteractionRules{TI,TB,TLG}) where {TI<:Any,TB<:Any,TLG<:Any} 
 """Get the type of `burstsize`, used for dispatch."""
 burssizetype(ir::InteractionRules{TI,TB,TLG}) where {TI<:Any,TB<:Any,TLG<:Any} = TB
 
+"""Get the type of `plysogeny`, used for dispatch."""
+plysogenytype(ir::InteractionRules{TI,TB,TLG}) where {TI<:Any,TB<:Any,TLG<:Any} = TLG
+
+_lysogenic(bact, phage, interactionrules, ::Type{<:Bool}) = interactionrules.plysogeny
+_lysogenic(bact, phage, interactionrules, ::Type{<:Number}) = rand() ≤ interactionrules.plysogeny
+_lysogenic(bact, phage, interactionrules, ::Type{<:AbstractVector{Bool}}) = interactionrules.plysogeny[species(phage)]
+_lysogenic(bact, phage, interactionrules, ::Type{<:AbstractVector}) = rand() ≤ interactionrules.plysogeny[species(phage)]
+
 """
     lysogenic(bact::AbstractBacterium, phagetype::Int,
                     interactionrules::AbstractInteractionRules)
@@ -48,12 +58,7 @@ prophage or whether it will enter a lytic phase and kill its host immediately.
 """
 function lysogenic(bact::AbstractBacterium, phage::AbstractPhage,
                     interactionrules::AbstractInteractionRules)
-    plysogeny = interactionrules.plysogeny
-    plysogeny isa Bool && return plysogeny
-    plysogeny isa Number && return rand() ≤ plysogeny
-    plysogeny isa AbstractVector{Bool} && return plysogeny[phagetype]
-    plysogeny isa AbstractVector && return rand() ≤ plysogeny[phagetype]
-    error("behaviour of `plysogeny` not defined (type is $(typeof(plysogeny)))")
+    return _lysogenic(bact, phage, interactionrules, plysogenytype(interactionrules))
 end
 
 """
@@ -69,7 +74,8 @@ function lyses(bact::AbstractBacterium, interactionrules::AbstractInteractionRul
     Rqs = interactionrules.Rqs
     # if radius is less than or equal to 1, lysis probability does not depend
     # on density
-    Rqs ≤ 1 && return return rand() < interactionrules.plysis
+    return rand() < interactionrules.plysis
+    Rqs ≤ 1 && return rand() < interactionrules.plysis
     sp = species(bact)
     ρ = density(bact, model, Rqs)
     # so the probability of lysis is proportional to the density
@@ -87,21 +93,23 @@ infects(phage, bact, ir::InteractionRules, ::Type{<:AbstractMatrix{T}}) where {T
     infects(phage, bact, ir::InteractionRules)
 
 Test whether `phage` can infect `bact` according to the interaction rules `ir`.
-Can be deterministic or stochastic, depending on the rules.
+Can be deterministic or stochastic, depending on the rules. Bacteria with a prophage
+cannot be infected.
 """
 function infects(phage::AbstractPhage, bact::AbstractBacterium,
                     ir::InteractionRules)
+    haslatent(bact) && return false
     return infects(phage, bact, ir::InteractionRules, infectiontype(ir))
 end
 
 # default burstsize is Poisson distributed
 # more general behaviour can also be implemented by extending these cases
-# TODO: make that this is generated directly with Poisson type, likely faster
 burstsize(phage, bact, ir::InteractionRules, bstype) = throw(MethodError(burstsize, bact, ir, bstype))
-burstsize(phage, bact, ir::InteractionRules, ::Type{Number}) = rand(Poisson(ir.burstsize))
+burstsize(phage, bact, ir::InteractionRules, ::Type{<:Number}) = rand(Poisson(ir.burstsize))
 
-burstsize(phage::AbstractPhage, bact::AbstractBacterium, ir::InteractionRules) = burstsize(phage, bact, ir, burssizetype(ir))
-
+function burstsize(phage::AbstractPhage, bact::AbstractBacterium, ir::InteractionRules)
+    return burstsize(phage, bact, ir, burssizetype(ir))
+end
 
 """
     infect!(phage::AbstractPhage, bact::AbstractBacterium,
@@ -112,21 +120,33 @@ Infect with a given probability. This function both determine
 function infect!(phage::AbstractPhage, bact::AbstractBacterium,
             interactionrules::AbstractInteractionRules, model)
     pos = bact.pos
-    kill_agent!(bact, model)
-    kill_agent!(phage, model)
-    sp = species(phage)
-    for i in 1:burstsize(phage, bact, interactionrules)
-        id = nextid(model)
-        add_agent!(Phage(id, pos, species), model)
+    # decide to go lytic or not
+    if lysogenic(bact, phage, interactionrules)
+        prophage!(bact, species(phage))
+        kill_agent!(phage, model)
+    else
+        sp = species(phage)
+        kill_agent!(bact, model)
+        kill_agent!(phage, model)
+        for i in 1:burstsize(interactionrules)
+            id = nextid(model)
+            add_agent!(Phage(id, pos, sp), model)
+        end
     end
 end
 
-
+function lyse!(bact::AbstractBacterium, model)
+    sp = prophage(bact)
+    pos = bact.pos
+    kill_agent!(bact, model)
+    for i in 1:burstsize(ir(model.properties))
+        id = nextid(model)
+        add_agent!(Phage(id, pos, sp), model)
+    end
 end
 
 """
 Compute the burstsize of an infected bacterium, sampled from a Poisson
 distribution.
 """
-burstsize(bact::AbstractBacterium, phagetype,
-            interactionrules::AbstractInteractionRules) = rand(Poisson(interactionrules.burstsize))
+burstsize(interactionrules::AbstractInteractionRules) = rand(Poisson(interactionrules.burstsize))

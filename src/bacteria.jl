@@ -1,6 +1,6 @@
 #=
 Created on Saturday 28 December 2019
-Last update: Friday 16 June 2020
+Last update: Thursday 02 July 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -9,7 +9,7 @@ Implementation of the bacteria using Agents.jl
 =#
 
 export AbstractBacterium, Bacterium
-export bacteria, prophage, haslatent, species, prophage!
+export bacteria, prophage, haslatent, species, prophage!, density
 export AbstractBacteriaRules, BacteriaRules, ProphageBacteriaRules,
             HeteroBacteriaRules, agent_step!
 
@@ -27,7 +27,7 @@ end
 
 Bacterium(id, pos, species=1) = Bacterium(id, pos, species, nothing)
 
-"""Test if agent is a bacterium"""
+"""Test if agent is a bacterium."""
 bacteria(a::AbstractAgent) = a isa AbstractBacterium
 
 """
@@ -37,13 +37,22 @@ Return the prophage of a bacterium. Return `nothing` if bact has no prophage.
 """
 prophage(bact::AbstractBacterium) = bact.prophage
 
+"""
+    prophage!(bact::AbstractBacterium, sp=nothing)
+
+Sets the prophage of `bact` to `sp`. Removes the prophage by default.
+"""
+prophage!(bact::AbstractBacterium, sp=nothing) = (bact.prophage = sp)
+
 
 """
     haslatent(bact::AbstractBacterium)
 
-Test whether a bacterium has a laten prophage
+Test whether a bacterium has a laten prophage.
 """
 haslatent(bact::AbstractBacterium) = !(bact.prophage isa Nothing)
+
+haslatent(a::AbstractAgent) = false
 
 """
     species(bact::AbstractAgent)
@@ -53,21 +62,25 @@ Returns the species of a bacterium or phage.
 species(bact::AbstractAgent) = bact.species
 
 """
-    prophage!(bact::AbstractBacterium, i::Int)
-
-Sets a prophage of species `i` of a bacterium.
-"""
-prophage!(bact::AbstractBacterium, i::Int) = (bact.prophage = i)
-
-"""
     species(bact::AbstractBacterium, sp::Int)
 
 Test if `bact` is of species `sp`.
 """
 species(bact::AbstractBacterium, sp::Int) = species(bact) == sp
 
+"""
+    density(bact, model, R, forspecies::Bool=true)
 
-# TODO: add density function
+Compute the density of the bacteria in a region of radius `R` around `bact`.
+If `species=false`, all bacteria will be taken into account. The default behaviour only
+takes bacteria of the same species as `bact`.
+"""
+function density(bact, model, R, forspecies::Bool=true)
+    #FIXME : does not work properly
+    bactinregion = space_neighbors(bact.pos, model, R)
+    nbact = forspecies ? count(b->species(b, species(bact)), bactinregion) : length(bactinregion)
+    return nbact / (R + 1)^2
+end
 
 
 # RULES AND BEHAVIOUR
@@ -164,7 +177,7 @@ function agent_step!(bact::AbstractBacterium, model)
     bactrules = br(model.properties)  # get the bacteria rules
     # if the bacterium has a prophage it might lyse or recover
     if haslatent(bact)
-        if recovers(bact)
+        if recovers(bact, bactrules)
             bact.prophage = nothing  # cured
         else
             interactionrules = ir(model.properties)
@@ -194,11 +207,11 @@ function move!(bact::AbstractBacterium, model)
     end
 end
 
-function reproduce!(bact::Bacterium, model)
+function reproduce!(bact::AbstractBacterium, model)
     neighbors = node_neighbors(bact, model)
     node = rand(neighbors)
     if isfree(node, model)
         id = nextid(model)
-        add_agent!(Bacterium(id, node, bact.species), model)
+        add_agent!(Bacterium(id, node, bact.species, bact.prophage), model)
     end
 end

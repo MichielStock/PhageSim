@@ -2,12 +2,11 @@ module PhageSim
 
 using Agents
 
-include("grid.jl")
-include("phages.jl")
 include("bacteria.jl")
+include("phages.jl")
 include("interactions.jl")
 include("simulate.jl")
-include("utils.jl")
+#include("utils.jl")
 
 
 end # module
