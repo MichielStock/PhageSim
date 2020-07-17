@@ -1,14 +1,47 @@
 
-@testset "updating phages" begin
+@testset "Phages" begin
 
-    grid = rand(1:100, 50, 50)
+    phage = Phage(1, (3, 4), 2)
 
-    nphages = sum(grid)
+    @testset "AbstractPhages" begin
+        @test phage isa AbstractAgent
+        @test phage isa AbstractPhage
+        @test phage isa Phage
 
-    # check mass balances
-    @test sum(step_phages!(grid, PhageRules(0.0))) == nphages
+        @test phages(phage)
+        @test species(phage) == 2
 
-    @test_throws AssertionError step_phages!(grid, PhageRules(-0.01))
-    @test sum(step_phages!(grid, PhageRules(0.6))) < nphages
-    @test sum(step_phages!(grid, PhageRules(0.1), poissonapprox=true)) < nphages
+    end
+
+    @testset "PhageRules" begin
+        phagerules = PhageRules(0.3)
+        @test phagerules.pmove ≈ 1.0
+
+        @test_throws AssertionError PhageRules(0.3, 1.2)
+        @test_throws AssertionError PhageRules(-0.3, 0.1)
+    end
+
+    @testset "InteractionRules" begin
+        bact = Bacterium(1, (3, 4), 1)
+        phage = Phage(1, (3, 4), 2)
+
+        @testset "homogeneous" begin
+            interactrules = InteractionRules(1.0, 2.1, false, 0.01, 2)
+
+            @test interactrules isa InteractionRules
+            @test !lysogenic(phage, bact, interactrules)
+            @test infects(phage, bact, interactrules)
+
+        end
+
+        @testset "heterogeneous" begin
+            interactrules = InteractionRules([true false; true true], 1.1, [false, true], 0.01, 2)
+
+            @test interactrules isa InteractionRules
+            @test lysogenic(phage, bact, interactrules)
+            @test !infects(phage, bact, interactrules)
+
+        end
+    end
+
 end

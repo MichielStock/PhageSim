@@ -10,7 +10,7 @@ Model the interactions between bacteria and their phages
 
 
 export AbstractInteractionRules, InteractionRules
-export lysogenic, lyses
+export lysogenic, lyses, infects
 using Distributions: Poisson
 
 abstract type AbstractInteractionRules end
@@ -20,18 +20,18 @@ Rules for the interactions between bacteria and phages.
 """
 struct InteractionRules{TI,TB,TLG} <: AbstractInteractionRules
     Pinf::TI  # matrix to determine the chance of infection host-phage
-    burstsize::TB  # average number of virons
+    burstsize::TB  # average number of virons per unit of energy
     plysogeny::TLG  # probability of entering the lysogentic cycle
     plysis::Float64  # probability that an infected bacterium lyses
     Rqs::Int  # radius for quorum sensing
     function InteractionRules(Pinf, burstsize::Number,
             plysogeny::Union{BP,AbstractVector{BP}}=false,
-            plysis=1.0, Rqs=0)  where {BP <: Union{Bool, AbstractFloat}}
+            plysis=1.0, Rqs::Int=0)  where {BP <: Union{Bool, AbstractFloat}}
         @assert all(0 .≤ plysogeny .≤ 1) "All values for `plysogeny` should be Booleans or probabilities"
         @assert !(plysogeny isa AbstractVector) || size(Pinf, 2) == length(plysogeny) "`plysogeny` has incorrect size"
         @assert 0 ≤ plysis ≤ 1 "`plysis` should be a valid probability"
         @assert Rqs ≥ 0 "radius for quorum sensing `R` should be nonnegative"
-        new{typeof(Pinf),typeof(burstsize),typeof(plysogeny)}(Pinf, burstsize, plysogeny,plysis)
+        new{typeof(Pinf),typeof(burstsize),typeof(plysogeny)}(Pinf,burstsize,plysogeny,plysis,Rqs)
     end
 end
 
@@ -44,21 +44,21 @@ burssizetype(ir::InteractionRules{TI,TB,TLG}) where {TI<:Any,TB<:Any,TLG<:Any} =
 """Get the type of `plysogeny`, used for dispatch."""
 plysogenytype(ir::InteractionRules{TI,TB,TLG}) where {TI<:Any,TB<:Any,TLG<:Any} = TLG
 
-_lysogenic(bact, phage, interactionrules, ::Type{<:Bool}) = interactionrules.plysogeny
-_lysogenic(bact, phage, interactionrules, ::Type{<:Number}) = rand() ≤ interactionrules.plysogeny
-_lysogenic(bact, phage, interactionrules, ::Type{<:AbstractVector{Bool}}) = interactionrules.plysogeny[species(phage)]
-_lysogenic(bact, phage, interactionrules, ::Type{<:AbstractVector}) = rand() ≤ interactionrules.plysogeny[species(phage)]
+_lysogenic(phage, bact, interactionrules, ::Type{<:Bool}) = interactionrules.plysogeny
+_lysogenic(phage, bact, interactionrules, ::Type{<:Number}) = rand() ≤ interactionrules.plysogeny
+_lysogenic(phage, bact, interactionrules, ::Type{<:AbstractVector{Bool}}) = interactionrules.plysogeny[species(phage)]
+_lysogenic(phage, bact, interactionrules, ::Type{<:AbstractVector}) = rand() ≤ interactionrules.plysogeny[species(phage)]
 
 """
-    lysogenic(bact::AbstractBacterium, phagetype::Int,
+lysogenic(phage::AbstractPhage, bact::AbstractBacterium,
                     interactionrules::AbstractInteractionRules)
 
 Determines whether a phage will enter a lysogentic phase with the host as a
 prophage or whether it will enter a lytic phase and kill its host immediately.
 """
-function lysogenic(bact::AbstractBacterium, phage::AbstractPhage,
+function lysogenic(phage::AbstractPhage, bact::AbstractBacterium,
                     interactionrules::AbstractInteractionRules)
-    return _lysogenic(bact, phage, interactionrules, plysogenytype(interactionrules))
+    return _lysogenic(phage, bact, interactionrules, plysogenytype(interactionrules))
 end
 
 """
@@ -105,7 +105,7 @@ end
 # default burstsize is Poisson distributed
 # more general behaviour can also be implemented by extending these cases
 burstsize(phage, bact, ir::InteractionRules, bstype) = throw(MethodError(burstsize, bact, ir, bstype))
-burstsize(phage, bact, ir::InteractionRules, ::Type{<:Number}) = rand(Poisson(ir.burstsize))
+burstsize(phage, bact, ir::InteractionRules, ::Type{<:Number}) = rand(Poisson(energy(bact) * ir.burstsize))
 
 function burstsize(phage::AbstractPhage, bact::AbstractBacterium, ir::InteractionRules)
     return burstsize(phage, bact, ir, burssizetype(ir))
@@ -121,7 +121,7 @@ function infect!(phage::AbstractPhage, bact::AbstractBacterium,
             interactionrules::AbstractInteractionRules, model)
     pos = bact.pos
     # decide to go lytic or not
-    if lysogenic(bact, phage, interactionrules)
+    if lysogenic(phage, bact, interactionrules)
         prophage!(bact, species(phage))
         kill_agent!(phage, model)
     else

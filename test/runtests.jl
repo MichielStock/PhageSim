@@ -1,6 +1,7 @@
-using Test, PhageSim
+using Test, PhageSim, Agents
 
-include("utils.jl")
-include("grid.jl")
-include("phages.jl")
 include("bacteria.jl")
+include("phages.jl")
+#include("utils.jl")
+#include("grid.jl")
+#

@@ -11,6 +11,7 @@ Implementation of the bacteria using Agents.jl
 export AbstractBacterium, Bacterium
 export bacteria, prophage, haslatent, species, prophage!, density, energy, energy!
 export AbstractBacteriaRules, BacteriaRules
+export pmove, Ediv, Eupdate, energyupdate
 export AbstractEnergyupdate, ConstantEnergyUpdate, RandomEnergyUpdate
 
 # BACTERIA TYPE AND FUNCTIONS
@@ -45,6 +46,8 @@ Set the energy level of a bacterium.
 """
 energy!(bact::AbstractBacterium, level::Float64) = (bact.energy = level)
 
+"""General agent does not have energy."""
+energy(a::AbstractAgent) = 0.0
 
 """
     prophage(bact::AbstractBacterium)
@@ -133,17 +136,13 @@ struct BacteriaRules{TPM,TED,TUF<:AbstractEnergyupdate} <: AbstractBacteriaRules
 	Eupdate::TUF
 end
 
-br(bactrules::BacteriaRules) = bactrules
-
 #TODO write constructor for this stuff
 
 getspeciespar(bact::AbstractBacterium, par::Number) = par
 getspeciespar(bact::AbstractBacterium, par::AbstractVector) = par[species(bact)]
 
 pmove(bact, br) = getspeciespar(bact, br.pmove)
-Emax(bact, br) = getspeciespar(bact, br.Emax)
 Ediv(bact, br) = getspeciespar(bact, br.Ediv)
-ΔEmain(bact, br) = getspeciespar(bact, br.ΔEmain)
 Eupdate(br) = br.Eupdate
 
 """

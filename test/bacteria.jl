@@ -1,51 +1,33 @@
 @testset "Bacteria" begin
-    bactgrid = emptybactgrid(10, 10)
-    @test nbacteria(bactgrid) == 0
+    bact = Bacterium(30, (2, 3), 3, 10.0, nothing)
 
-    bactgrid[3, 3] = Bacterium(1)
-    bactgrid[4, 4] = Bacterium(1, 1)
-    bactgrid[4, 6] = Bacterium(2)
+    @testset "AbstractBacteria" begin
+        @test bact isa AbstractAgent
+        @test bact isa AbstractBacterium
 
-    @test isbacterium(bactgrid[4, 4])
-    @test !isbacterium(bactgrid[4, 5])
-    @test nbacteria(bactgrid) == 3
-    @test nbacteria(bactgrid, 1) == 2
-    @test haslatent(bactgrid[4, 4])
-    @test !haslatent(bactgrid[4, 6])
-    @test prophage(bactgrid[4, 4]) == 1
-    @test prophage(bactgrid[3,3]) === missing
-    # creates new bacteria with a phage
-    @test prophage(bactgrid[3, 3], 2) |> prophage == 2
-    @test species(bactgrid[4, 4]) == 1
-    @test Set(species(bactgrid)) == Set([1, 2])
+        @test bacteria(bact)
+        @test species(bact) == 3
+        @test energy(bact) ≈ 10
+        energy!(bact, 9.0)
+        @test energy(bact) ≈ 9.0
+        @test !haslatent(bact)
+        prophage!(bact, 4)
+        @test haslatent(bact)
+        @test prophage(bact) == 4
 
-    @test density(bactgrid) ≈ 3 / 100
-    @test density(bactgrid, 1) ≈ 2 / 100
-    @test density(bactgrid, CartesianIndex(8, 2)) == 0
-    @test density(bactgrid, CartesianIndex(4, 4), R=1) ≈ 2 / 9
-    @test density(bactgrid, CartesianIndex(4, 4), R=0) ≈ 1
-    @test density(bactgrid, CartesianIndex(4, 4), R=2) ≈ 3 / 25
-    @test density(bactgrid, CartesianIndex(4, 4), 1, R=2) ≈ 2 / 25
+        energyupdate(bact, ConstantEnergyUpdate(1.0, 15.0))
+        @test energy(bact) ≈ 10
 
-    grid = initbactgrid(10, 10, nbacteria=5)
-
-    @test density(grid) ≈ 0.05
-    @test 0 < density(initbactgrid(10, 10, nbacteria=90, nspecies=2), 1) < 0.9
+        energyupdate(bact, RandomEnergyUpdate(50.0, 15.0, 0.1))
+        @test energy(bact) ≈ 15
+    end
 
     @testset "BacteriaRules" begin
-        bactrules = BacteriaRules(0.1, 0.3, 0.0)
-        bact = Bacterium(2, 0)
-        @test bactrules isa AbstractBacteriaRules
-        @test bacteriaprobs(bactrules, bact) == (0.1, 0.3, 0.0)
-        heterobactrules = BacteriaRules([0.1, 0.2, 0.4], [0.1, 0.3, 0.1], [0.2, 0.3, 0.2])
-        @test heterobactrules isa AbstractBacteriaRules
-        @test heterobactrules isa HeteroBacteriaRules
-        @test bacteriaprobs(heterobactrules, bact) == (0.2, 0.3, 0.3)
-        prophbr = BacteriaRules((0.1, 0.2, 0.4), (0.1, 0.3, 0.1))
-        @test prophbr isa AbstractBacteriaRules
-        @test prophbr isa ProphageBacteriaRules
-        @test bacteriaprobs(prophbr, bact) == (0.1, 0.2, 0.4)
-        @test bacteriaprobs(prophbr, prophage(bact, 1)) == (0.1, 0.3, 0.1)
+
+        bactrule = BacteriaRules(0.1, [3, 4, 5], ConstantEnergyUpdate(1.0, 15.0))
+
+        @test pmove(bact, bactrule) ≈ 0.1
+        @test Ediv(bact, bactrule) ≈ 5
 
     end
 end

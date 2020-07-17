@@ -1,6 +1,6 @@
 #=
 Created on Friday 27 December 2019
-Last update: Thursday 02 July 2020
+Last update: Thursday 16 July 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -28,18 +28,19 @@ phages(a::AbstractAgent) = a isa AbstractPhage
 # RULES AND BEHAVIOUR
 # -------------------
 
-
 abstract type AbstractPhageRules end
 
 struct PhageRules <: AbstractPhageRules
     pdecay::Float64
-    R::Int
-    function PhageRules(pdecay, R=1)
+    pmove::Float64
+    function PhageRules(pdecay, pmove=1.0)
         @assert 0.0 ≤ pdecay ≤ 1.0 "`pdecay` should be in [0, 1], got $pdecay"
-        @assert R > 0 "R should be a positive integer"
-        return new(pdecay, R)
+        @assert 0.0 ≤ pmove ≤ 1.0 "`pmove` should be in [0, 1], got $pmove"
+        return new(pdecay, pmove)
     end
 end
+
+pr(phagerules::AbstractPhageRules) = phagerules
 
 """
     decays(phage::AbstractPhage, phagerules::PhageRules)
@@ -69,8 +70,10 @@ end
 
 function move!(phage::AbstractPhage, model)
     phagerules = pr(model.properties)
-    # FIXME: R region does not seem to work, also: no change of staying!
-    neighbors = node_neighbors(phage, model)#, r=phagerules.R)
-    node = rand(neighbors)
-    move_agent!(phage, node, model)
+    pmove = phagerules.pmove
+    if pmove == 1.0 || pmove ≤ rand()
+        neighbors = node_neighbors(phage, model)#, r=phagerules.R)
+        node = rand(neighbors)
+        move_agent!(phage, node, model)
+    end
 end
