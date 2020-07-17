@@ -13,7 +13,7 @@ export AbstractInteractionRules, InteractionRules
 export lysogenic, lyses, infects
 using Distributions: Poisson
 
-abstract type AbstractInteractionRules end
+abstract type AbstractInteractionRules <: AbstractRules end
 
 """
 Rules for the interactions between bacteria and phages.

@@ -28,7 +28,7 @@ phages(a::AbstractAgent) = a isa AbstractPhage
 # RULES AND BEHAVIOUR
 # -------------------
 
-abstract type AbstractPhageRules end
+abstract type AbstractPhageRules <: AbstractRules end
 
 struct PhageRules <: AbstractPhageRules
     pdecay::Float64

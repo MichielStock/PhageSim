@@ -105,7 +105,7 @@ end
 # RULES AND BEHAVIOUR
 # -------------------
 
-abstract type AbstractEnergyupdate end
+abstract type AbstractEnergyupdate <: AbstractRules end
 
 struct ConstantEnergyUpdate <: AbstractEnergyupdate
 	ΔE::Float64
@@ -128,7 +128,7 @@ function energyupdate(bact::AbstractBacterium, ur::RandomEnergyUpdate)
 	bact.energy > ur.Emax && energy!(bact, ur.Emax)
 end
 
-abstract type AbstractBacteriaRules end
+abstract type AbstractBacteriaRules <: AbstractRules end
 
 struct BacteriaRules{TPM,TED,TUF<:AbstractEnergyupdate} <: AbstractBacteriaRules
     pmove::TPM
@@ -138,8 +138,8 @@ end
 
 #TODO write constructor for this stuff
 
-getspeciespar(bact::AbstractBacterium, par::Number) = par
-getspeciespar(bact::AbstractBacterium, par::AbstractVector) = par[species(bact)]
+getspeciespar(agent::AbstractAgent, par::Number) = par
+getspeciespar(agent::AbstractAgent, par::AbstractVector) = par[species(agent)]
 
 pmove(bact, br) = getspeciespar(bact, br.pmove)
 Ediv(bact, br) = getspeciespar(bact, br.Ediv)
