@@ -9,6 +9,7 @@ General utilies for modelling.
 =#
 
 export bacteria1, bacteria2, bacteria3, phages1, phages2, phages3
+export plothp
 
 # SHOWING THE RULES
 # -----------------
@@ -29,41 +30,42 @@ import Base: show
 """
 Just an overloading for printing the various rules used in PhageSim.
 """
-show(io::IO, rules::AbstractRules) = print(rulestring(rules))
+show(io::IO, rules::AbstractRules) = rulestring(rules) |> print
 
-# Identifying agents
+# COLLECTING DATA
+# ---------------
 
-bacteria(a::AbstractAgent, sp) = bacteria(a) && species(a) == sp
+bacteria(a::AbstractAgent, sp::Int) = bacteria(a) && species(a) == sp
 bacteria1(a) = bacteria(a, 1)
 bacteria2(a) = bacteria(a, 2)
 bacteria3(a) = bacteria(a, 3)
 
-phages(a::AbstractPhage, sp) = phages(a) && species(a) == sp
+phages(a::AbstractAgent, sp::Int) = phages(a) && species(a) == sp
 phages1(a) = phages(a, 1)
 phages2(a) = phages(a, 2)
 phages3(a) = phages(a, 3)
 
-#=
+
 using AgentsPlots
 
 
 mshape(a::AbstractBacterium) = :circle
 mshape(a::AbstractPhage) = :hex
-as(a::AbstractPhage) = 2
-as(a::AbstractBacterium) = 10
+as(a::AbstractPhage) = 1
+as(a::AbstractBacterium) = 3energy(a)
 offset(a::AbstractBacterium) = (0.0, 0.0)
-offset(a::AbstractPhage) = (0.1randn(), 0.1randn())
+offset(a::AbstractPhage) = (0.3randn(), 0.3randn())
 
 function mcolor(a::Union{Bacterium,Phage})
     species(a) == 1 && return :red
     species(a) == 2 && return :blue
-    species(a) && return :green
+    species(a) == 3 && return :green
 end
 
 plothp(model) = plotabm(
     model;
     offset = offset,
-    ac=mcolor,
+    ac = mcolor,
     am = mshape,
     as = as,
     scheduler = by_type((Bacterium, Phage), false),
@@ -72,4 +74,3 @@ plothp(model) = plotabm(
     showaxis = false,
     aspect_ratio = :equal,
 )
-=#
