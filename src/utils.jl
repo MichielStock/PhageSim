@@ -1,6 +1,6 @@
 #=
 Created on Wednesday 26 March 2020
-Last update: Thursday 9 April 2020
+Last update: Friday 17 July 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -8,44 +8,68 @@ michielfmstock@gmail.com
 General utilies for modelling.
 =#
 
-export insimplex, species_counts, species_counts_lat
+export bacteria1, bacteria2, bacteria3, phages1, phages2, phages3
 
-"""
-    insimplex(x::AbstractFloat...)
+# SHOWING THE RULES
+# -----------------
 
-Test if values of `x` are in a simplex, i.e., non-negative and sum to one.
-"""
-insimplex(x::AbstractFloat...) = all(x .≥ 0.0) && sum(x) ≈ 1.0
+rulestring(x, level=0) = string(x)
 
-
-"""
-    species_counts(bactgrid::BactGrid, phagegrids; nspecies::Int)
-
-Returns a tuple with a list counting all the bacteria of each species and a
-list counting all phages of each species.
-"""
-function species_counts(bactgrid::BactGrid, phagegrids; nspecies::Int)
-    # first count the bacteria of each species
-    bactcount = [nbacteria(bactgrid, sp) for sp in 1:nspecies]
-    phagecount = sum.(phagegrids)
-    return bactcount, phagecount
+function rulestring(rules::AbstractRules, level=0)
+    rs = level > 0 ? "\n" : ""
+    rs *= "\t"^level * string(typeof(rules)) * ":"
+    fields = fieldnames(typeof(rules))
+    for fn in fieldnames(typeof(rules))
+        rs *= "\n" * "\t"^level * "- $fn : " * rulestring(getfield(rules, fn), level+1)
+    end
+    return rs
 end
 
+import Base: show
 """
-    species_counts_lat(bactgrid::BactGrid, phagegrids; nspecies::Int)
+Just an overloading for printing the various rules used in PhageSim.
+"""
+show(io::IO, rules::AbstractRules) = print(rulestring(rules))
 
-Returns a tuple with a list counting all the bacteria of each species, a
-list counting all phages of each species and a matrix containing the number
-latent phages per bacterium species.
-"""
-function species_counts_lat(bactgrid::BactGrid, phagegrids; nspecies::Int)
-    # first count the bacteria of each species
-    nphages = length(phagegrids)
-    bactcount = [nbacteria(bactgrid, sp) for sp in 1:nspecies]
-    phagecount = sum.(phagegrids)
-    bacteria = filter(isbacterium, bactgrid)
-    prophagescount = [count(
-            b -> species(b) == i && haslatent(b) && prophage(b)==j, bacteria)
-            for i in 1:nspecies, j in 1:nphages]
-    return bactcount, phagecount, prophagescount
+# Identifying agents
+
+bacteria(a::AbstractAgent, sp) = bacteria(a) && species(a) == sp
+bacteria1(a) = bacteria(a, 1)
+bacteria2(a) = bacteria(a, 2)
+bacteria3(a) = bacteria(a, 3)
+
+phages(a::AbstractPhage, sp) = phages(a) && species(a) == sp
+phages1(a) = phages(a, 1)
+phages2(a) = phages(a, 2)
+phages3(a) = phages(a, 3)
+
+#=
+using AgentsPlots
+
+
+mshape(a::AbstractBacterium) = :circle
+mshape(a::AbstractPhage) = :hex
+as(a::AbstractPhage) = 2
+as(a::AbstractBacterium) = 10
+offset(a::AbstractBacterium) = (0.0, 0.0)
+offset(a::AbstractPhage) = (0.1randn(), 0.1randn())
+
+function mcolor(a::Union{Bacterium,Phage})
+    species(a) == 1 && return :red
+    species(a) == 2 && return :blue
+    species(a) && return :green
 end
+
+plothp(model) = plotabm(
+    model;
+    offset = offset,
+    ac=mcolor,
+    am = mshape,
+    as = as,
+    scheduler = by_type((Bacterium, Phage), false),
+    grid = false,
+    size = (800, 600),
+    showaxis = false,
+    aspect_ratio = :equal,
+)
+=#
