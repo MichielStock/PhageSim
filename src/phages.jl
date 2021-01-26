@@ -45,7 +45,7 @@ pr(phagerules::AbstractPhageRules) = phagerules
 """
     decays(phage::AbstractPhage, phagerules::PhageRules)
 
-Decay the phage?
+Does the phage decay?
 """
 function decays(phage::AbstractPhage, phagerules::PhageRules)
     phagerules.pdecay == 0.0 && return false
