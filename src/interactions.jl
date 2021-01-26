@@ -87,7 +87,7 @@ end
 infects(phage, bact, ir::InteractionRules, ::Type{Bool}) = ir.Pinf
 infects(phage, bact, ir::InteractionRules, ::Type{<:Number}) = rand() ≤ ir.Pinf
 infects(phage, bact, ir::InteractionRules, ::Type{<:AbstractMatrix{Bool}}) = ir.Pinf[species(bact), species(phage)]
-infects(phage, bact, ir::InteractionRules, ::Type{<:AbstractMatrix{T}}) where {T<:Number} = ir.Pinf[species(bact), species(phage)] ≤ rand()
+infects(phage, bact, ir::InteractionRules, ::Type{<:AbstractMatrix{T}}) where {T<:Number} = rand() ≤ ir.Pinf[species(bact), species(phage)]
 
 """
     infects(phage, bact, ir::InteractionRules)
