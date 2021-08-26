@@ -27,6 +27,7 @@ struct InteractionRules{TI,TB,TLG} <: AbstractInteractionRules
     function InteractionRules(Pinf, burstsize::Number,
             plysogeny::Union{BP,AbstractVector{BP}}=false,
             plysis=1.0, Rqs::Int=0)  where {BP <: Union{Bool, AbstractFloat}}
+        @assert all(0 .≤ Pinf .≤ 1) "Pinf is Boolean or probabilities"
         @assert all(0 .≤ plysogeny .≤ 1) "All values for `plysogeny` should be Booleans or probabilities"
         @assert !(plysogeny isa AbstractVector) || size(Pinf, 2) == length(plysogeny) "`plysogeny` has incorrect size"
         @assert 0 ≤ plysis ≤ 1 "`plysis` should be a valid probability"
@@ -115,7 +116,9 @@ end
     infect!(phage::AbstractPhage, bact::AbstractBacterium,
             interactionrules::AbstractInteractionRules, model)
 
-Infect with a given probability. This function both determine
+Infect with a given probability. This function both determines whether
+the infection takes place and, if it does, it updates the agents by removing
+the host and adding new phage particles.
 """
 function infect!(phage::AbstractPhage, bact::AbstractBacterium,
             interactionrules::AbstractInteractionRules, model)
@@ -146,6 +149,8 @@ function lyse!(bact::AbstractBacterium, model)
 end
 
 """
+    burstsize(interactionrules::AbstractInteractionRules)
+
 Compute the burstsize of an infected bacterium, sampled from a Poisson
 distribution.
 """

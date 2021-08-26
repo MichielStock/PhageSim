@@ -8,7 +8,8 @@ michielfmstock@gmail.com
 General utilies for modelling.
 =#
 
-export bacteria1, bacteria2, bacteria3, phages1, phages2, phages3
+export bacteria1, bacteria2, bacteria3, bacteria4, bacteria5
+export phages1, phages2, phages3, phages4, phages5
 export plothp
 
 # SHOWING THE RULES
@@ -39,11 +40,15 @@ bacteria(a::AbstractAgent, sp::Int) = bacteria(a) && species(a) == sp
 bacteria1(a) = bacteria(a, 1)
 bacteria2(a) = bacteria(a, 2)
 bacteria3(a) = bacteria(a, 3)
+bacteria4(a) = bacteria(a, 4)
+bacteria5(a) = bacteria(a, 5)
 
 phages(a::AbstractAgent, sp::Int) = phages(a) && species(a) == sp
 phages1(a) = phages(a, 1)
 phages2(a) = phages(a, 2)
 phages3(a) = phages(a, 3)
+phages4(a) = phages(a, 4)
+phages5(a) = phages(a, 5)
 
 
 using AgentsPlots

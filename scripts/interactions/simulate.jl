@@ -1,6 +1,6 @@
 #=
 Created on Friday 09 October 2020
-Last update: Tuesday 26 January 2021
+Last update: wedneday 31 March 2021
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -15,10 +15,10 @@ using Agents, AgentsPlots
 using LinearAlgebra
 using BSON, CSV
 
-repl = 50
+repl = 5
 tsteps = 1000
 
-dims = (50, 50)
+dims = (100, 100)
 
 # structures of matrix
 p = 0.1
@@ -34,7 +34,7 @@ Psec = [p   0   p/2;
 
 # general parameters
 burstsize = 5.0
-pdecay = 0.1
+pdecay = 0.05
 plysogeny = 0.0
 plysis = 0.05
 pmovebact = 0.5
@@ -46,7 +46,7 @@ Emax = 25.0
 n_bacteria = 500
 n_phages = 10_000
 
-parameters = Dict(
+parameters = Dict{Symbol,Any}(
     :burstsize => 1.0,
     :pdecay => 0.1,
     :plysogeny => false,
@@ -60,10 +60,15 @@ adata = [(bacteria, count), (phages, count), (haslatent, count),
         (bacteria1, count), (bacteria2, count), (bacteria3, count),
         (phages1, count), (phages2, count), (phages3, count)]
 
+         
 for (infecttype, Pinf) in zip(["uniform", "unique", "nested", "secundair"],
                         [Punif, Punique, Pnested, Psec])
 
     println("Simulating $infecttype...")
+
+    parameters[:Pinf] = Pinf
+
+    safesave(datadir("interactions/$infecttype.bson"), parameters)
 
     # generate basic rules
     rules = PhageSimRules(Pinf=Pinf, burstsize=burstsize, pdecay=pdecay, plysogeny=plysogeny,

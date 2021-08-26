@@ -104,7 +104,7 @@ function initialize_model(rules::PhageSimRules;
     Einit=1.0,
 )
     @assert n_bacteria ≤ prod(dims) "Too many bacteria for the grid"
-    space = GridSpace(dims, moore=true)
+    space = GridSpace(dims, metric=:chebyshev)
     model = AgentBasedModel(Union{Bacterium,Phage}, space,
                             scheduler=by_type(true, true), warn=false,
                             properties=rules)

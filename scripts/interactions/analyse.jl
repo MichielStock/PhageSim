@@ -1,6 +1,6 @@
 #=
 Created on Friday 16 October 2020
-Last update: -
+Last update: Wednesday 31 March 2020
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -22,7 +22,7 @@ for infecttype in ["uniform", "unique", "nested", "secundair"]
     results = CSV.read(datadir("interactions/$infecttype.csv"), DataFrame)
 
     #@df results corrplot([:count_bacteria1, :count_bacteria2, :count_bacteria3, :count_phages1, :count_phages2, :count_phages3])
-    corrplot(results[:,5:end-1] |> Matrix, labels=names(results)[5:end-1])
+    corrplot(results[:,5:end-1] |> Matrix, labels=names(results)[5:end-1], size=(1500,1500))
     savefig(plotsdir("interactions/$(infecttype)_corplot.png"))
 
     # plot growth curves
