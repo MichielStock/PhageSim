@@ -1,6 +1,6 @@
 #=
 Created on Friday 09 October 2020
-Last update: wedneday 31 March 2021
+Last update: Monday 30 August 2021
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -10,80 +10,87 @@ Assessing the effect of the structure of the interaction matrix on the bacteria-
 
 using DrWatson
 quickactivate(@__DIR__, "PhageSim")
-using PhageSim, Plots
-using Agents, AgentsPlots
-using LinearAlgebra
+using PhageSim
+using Agents
 using BSON, CSV
+using InteractiveDynamics, CairoMakie
 
-repl = 5
-tsteps = 1000
+repl = 1
+tsteps = 500
 
-dims = (100, 100)
+extent = (50, 50)
+
+nspecies = nbactsp = nphagesp = 3
 
 # structures of matrix
-p = 0.1
+p = 0.25
 
-Punif = p
-Punique = 3p * Matrix(I, 3, 3)
-Pnested = [p/3 0   0;
-           p/3 p/2 0;
-           p/3 p/2 p]
-Psec = [p   0   p/2;
-        p/2 p   0;
-        0   p/2 p]
+Pnone = 0.0
+Punif = p/3
+Punique = probs_unique(nspecies, p)
+Pnested = probs_nested(nspecies, p)
+Psec = probs_sec(nspecies, p, p/5)
 
 # general parameters
-burstsize = 5.0
-pdecay = 0.05
-plysogeny = 0.0
-plysis = 0.05
-pmovebact = 0.5
-ΔE = 2.0
-Ediv = 10.0
-Emax = 25.0
-σE = 2.0
+burstsize = 10.0
+ΔE = .2
+l = 0.5
+Δbact = l
+Δphage = Δbact
+pdie = 0.01
+pdecay = 0.1
 
-n_bacteria = 500
-n_phages = 10_000
 
-parameters = Dict{Symbol,Any}(
-    :burstsize => 1.0,
-    :pdecay => 0.1,
-    :plysogeny => false,
-    :plysis => 0.0,
-    :pmovebact => 0.5,
-    :ΔE => 2.0,
-    :Ediv => 10.0,
-)
+nbacteria = 500
+nphages = 1000
 
-adata = [(bacteria, count), (phages, count), (haslatent, count),
-        (bacteria1, count), (bacteria2, count), (bacteria3, count),
-        (phages1, count), (phages2, count), (phages3, count)]
+
+adata = [(bacteria, count), (phages, count)]
+
+# metaprogramming hocus pocus to get the counters
+for i in 1:nspecies
+   push!(adata, (eval(Meta.parse("bacteria_$i")), count))
+   push!(adata, (eval(Meta.parse("phages_$i")), count))
+end
 
          
-for (infecttype, Pinf) in zip(["uniform", "unique", "nested", "secundair"],
-                        [Punif, Punique, Pnested, Psec])
+for (infecttype, Pinf) in zip(["reference", "uniform", "unique", "nested", "secundair"],
+                        [Pnone, Punif, Punique, Pnested, Psec])
 
     println("Simulating $infecttype...")
 
-    parameters[:Pinf] = Pinf
+    generator(seed) = init_model(extent, min(extent...)/20; nbacteria, nphages, nbactsp, nphagesp,
+                        burstsize, ΔE, l, Δbact, Δphage, pdie, pdecay, seed,
+                        infection=infmodel(Pinf))
 
-    safesave(datadir("interactions/$infecttype.bson"), parameters)
+    parameters = @dict extent nbacteria nphages nbactsp nphagesp burstsize ΔE l Δbact Δphage pdie pdecay Pinf infecttype
+    safesave(datadir("interactions/params_$(infecttype)_$nspecies.bson"), parameters)
 
-    # generate basic rules
-    rules = PhageSimRules(Pinf=Pinf, burstsize=burstsize, pdecay=pdecay, plysogeny=plysogeny,
-                    plysis=plysis, pmovebact=pmovebact, Ediv=Ediv,
-                    Eupdate=RandomEnergyUpdate(ΔE, Emax, σE))
-    
-    model = initialize_model(rules,
-                    n_bacteria=n_bacteria,
-                    n_phages=n_phages,
-                    n_phage_sp=3,
-                    n_bact_sp=3,
-                    dims=dims)
+    results, _, models = ensemblerun!(generator, agent_step!, model_step!, tsteps; adata, ensemble=repl)
 
+    anybact = [model.nbacteria > 0 for model in models] |> mean
+    anyphage = [nagents(model) - model.nbacteria > 0 for model in models] |> mean
 
-    results, _ = run!(model, agent_step!, tsteps, adata=adata, replicates=repl, parallel=true)
-    safesave(datadir("interactions/$infecttype.csv"), results)
+    println("Bacteria remain in $anybact of the models and phages remain in $anyphage of the models")
 
+    safesave(datadir("interactions/$(infecttype)_$nspecies.csv"), results)
+
+    # make simulation
+
+    println("Making a simulation...")
+
+    abm_video(
+        plotsdir("interactions/movie_$(infecttype)_$nspecies.mp4"),
+        generator(1),
+        agent_step!,
+        model_step!;
+        ac=agentcolor,
+        as=agentsize,
+        title = "Model $infecttype",
+        frames = tsteps,
+        spf = 2,
+        framerate = 5,
+)
+
+    println()
 end
