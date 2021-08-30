@@ -1,15 +1,10 @@
 module PhageSim
 
-using Agents
+using Agents, Random
 
-abstract type AbstractRules end
 
-export AbstractRules
 
-include("bacteria.jl")
-include("phages.jl")
-include("interactions.jl")
-include("simulate.jl")
+include("agents.jl")
 include("utils.jl")
 
 
