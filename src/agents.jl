@@ -18,13 +18,13 @@ end
 
 
 isbacterium(a::Agent) = a.isbact
-species(a::Agent) a.species
+species(a::Agent) = a.species
 
 unitvector(ϕ) = reverse(sincos(ϕ))
 rand_dir(Δ) = Δ .* (randn(), randn())
 
 # does not do anything
-# TODO: add random phages
+
 model_step!(model) = nothing
 
 function model_step_rand_phages(nphages=1)
@@ -35,11 +35,8 @@ function model_step_rand_phages(nphages=1)
     end
 end
 
-
-
-# adding random phages
-
 function agent_step!(agent, model)
+    # TODO: might add competition in reproduction?
     sp = agent.species
     pos = agent.pos
     l = model.l
@@ -58,7 +55,7 @@ function agent_step!(agent, model)
         dx, dy = rand_dir(model.Δbact)
         walk!(agent, (dx, dy), model)
         # now check if this place was free
-        for neighbor in nearby_agents(agent, model, 2l)
+        for neighbor in nearby_agents(agent, model, 2l, exact=true)
             if neighbor.id != agent.id && isbacterium(neighbor)
                 walk!(agent, (-dx, -dy), model)  # move back...
                 break
@@ -69,7 +66,7 @@ function agent_step!(agent, model)
         agent.growthprog += model.ΔE * rand(model.rng)
 
         # infection?
-        for neighbor in nearby_agents(agent, model, l)
+        for neighbor in nearby_agents(agent, model, l, exact=true)
             if !isbacterium(neighbor) && model.infection(agent.species, neighbor.species)
                 # succesfull infection!
                 for _ in 1:rand(Poisson(model.burstsize))
@@ -88,7 +85,7 @@ function agent_step!(agent, model)
             daughter_pos = pos .+ 2.05l .* unitvector(orient)
             extent = model.space.extent
             daughter_pos = (daughter_pos .+ extent) .% extent
-            for neighbor in nearby_agents(daughter_pos, model, l)
+            for neighbor in nearby_agents(daughter_pos, model, 2l, exact=true)
                 if isbacterium(neighbor)
                     return  # no place for reproduction!
                 end
@@ -108,7 +105,7 @@ function agent_step!(agent, model)
             return
         end
 
-        # moving
+        # move
         dir = rand_dir(model.Δphage)
         walk!(agent, dir, model)
 
@@ -126,7 +123,7 @@ i.e. `pinf(sp_bact, sp_phage) = rand() ≤ P[sp_bact, sp_phage] * p`
 """
 function infmodel(P, p=1)
     @assert 0 < p ≤ 1
-    return (sp_bact, sp_phage) -> rand() ≤ P[sp_bact, sp_phage] * p
+    return (sp_bact, sp_phage) -> P[sp_bact, sp_phage] > 0 ? rand() ≤ P[sp_bact, sp_phage] * p : false
 end
 
 function infmodel(P::Matrix{Bool}, p)
@@ -137,8 +134,8 @@ end
 infmodel(P::Matrix{Bool}) = (sp_bact, sp_phage) -> P[sp_bact,sp_phage]
 
 function infmodel(p::Real)
-    @assert 0 < p ≤ 1
-    return (sp_bact, sp_phage) -> sp_bact==sp_phage ? rand() ≤ p : false
+    @assert 0 ≤ p ≤ 1
+    return (sp_bact, sp_phage) -> rand() ≤ p
 end
 
 function init_model(extent=(20, 20), spacing=min(extent...)/10; nbacteria=20, nbactsp=1, nphages=100,
@@ -175,8 +172,8 @@ function init_model(extent=(20, 20), spacing=min(extent...)/10; nbacteria=20, nb
     # populate
     maxiter = 100_000
     for _ in 1:maxiter
-        pos = (rand() * spacesize[1], rand() * spacesize[2])
-        !isempty(nearby_ids(pos, model, 2l)) && continue
+        pos = (rand() * extent[1], rand() * extent[2])
+        !isempty(nearby_ids(pos, model, 2l, exact=true)) && continue
         sp = rand(1:nbactsp)
         add_agent!(pos, model, true, sp, rand())
         nagents(model) == nbacteria && break
@@ -187,7 +184,7 @@ function init_model(extent=(20, 20), spacing=min(extent...)/10; nbacteria=20, nb
     end
 
     for _ in 1:nphages
-        pos = (rand() * spacesize[1], rand() * spacesize[2])
+        pos = (rand() * extent[1], rand() * extent[2])
         sp = rand(1:nphagesp)
         add_agent!(pos, model, false, sp, 0.0)
     end
