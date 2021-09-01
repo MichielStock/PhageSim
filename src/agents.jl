@@ -27,7 +27,7 @@ rand_dir(Δ) = Δ .* (randn(), randn())
 
 model_step!(model) = nothing
 
-function model_step_rand_phages(nphages=1)
+function model_step_rand_phages(nphages=20)
     return function model_step!(model)
         for _ in 1:rand(Poisson(nphages))
             add_agent!(model, false, rand(1:model.nphagesp), 0.0)

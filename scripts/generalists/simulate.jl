@@ -1,6 +1,6 @@
 #=
 Created on 30/08/2021 16:08:09
-Last update: -
+Last update: Wednesday 1 September 2021
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -11,63 +11,68 @@ Each bacterium has one primary virus. The third phage is a generalist,
 
 =#
 
-using DrWatson
+using DrWatson, Distributed
 quickactivate(@__DIR__, "PhageSim")
-using PhageSim
-using Agents
-using BSON, CSV, Statistics
+
+addprocs(8)
+
 using InteractiveDynamics, CairoMakie
 
+@everywhere begin
+    using Pkg; Pkg.activate(".")
+    using PhageSim, Agents
+    using BSON, CSV, Statistics
 
-repl = 1
-tsteps = 500
+    repl = 100
+    tsteps = 500
 
-extent = (50, 50)
+    extent = (50, 50)
 
-
-
-# structures of matrix
-p = 0.25
-
-
-
-# general parameters
-burstsize = 10.0
-ΔE = .2
-l = 0.5
-Δbact = l
-Δphage = Δbact
-pdie = 0.01
-pdecay = 0.1
+    # structures of matrix
+    p = 0.25
 
 
-nbacteria = 500
-nphages = 1000
+    # general parameters
+    burstsize = 10.0
+    ΔE = .2
+    l = 0.5
+    Δbact = l
+    Δphage = Δbact
+    pdie = 0.01
+    pdecay = 0.1
 
-nbactsp = 2
-nphagesp = 3
+
+    nbacteria = 500
+    nphages = 2000
+
+    nbactsp = 2
+    nphagesp = 3
 
 
-adata = [(bacteria, count), (phages, count),
-        (bacteria_1, count), (bacteria_2, count),
-        (phages_1, count), (phages_2, count), (phages_3, count)]
+    adata = [(bacteria, count), (phages, count),
+            (bacteria_1, count), (bacteria_2, count),
+            (phages_1, count), (phages_2, count), (phages_3, count)]
+end
 
          
-for θ in [0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1]
+for θ in [0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1]
 
     println("Simulating θ=$θ...")
 
-    Pinf = [p 0 θ*p;
+    "@everywhere θ = $θ" |> Meta.parse |> eval
+
+    @everywhere Pinf = [p 0 θ*p;
             0 p θ*p;]
 
-    generator(seed) = init_model(extent, min(extent...)/20; nbacteria, nphages, nbactsp, nphagesp,
+    @everywhere generator(seed) = init_model(extent, min(extent...)/20; nbacteria, nphages, nbactsp, nphagesp,
                         burstsize, ΔE, l, Δbact, Δphage, pdie, pdecay, seed,
                         infection=infmodel(Pinf))
 
     parameters = @dict extent nbacteria nphages nbactsp nphagesp burstsize ΔE l Δbact Δphage pdie pdecay Pinf
     safesave(datadir("generalists/params_generalists_$(θ).bson"), parameters)
 
-    results, _, models = ensemblerun!(generator, agent_step!, model_step!, tsteps; adata, ensemble=repl)
+    results, _, models = ensemblerun!(generator, agent_step!, model_step!, tsteps; adata,
+                                    ensemble=repl, parallel=true)
 
     anybact = [model.nbacteria > 0 for model in models] |> mean
     anyphage = [nagents(model) - model.nbacteria > 0 for model in models] |> mean
