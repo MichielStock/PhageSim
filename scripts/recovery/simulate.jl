@@ -17,7 +17,7 @@ using InteractiveDynamics, CairoMakie
 addprocs(8)
 
 @everywhere begin
-    using Pkg; Pkg.activate(".")
+    #using Pkg; Pkg.activate(".")
     using PhageSim
     using Agents
     using BSON, CSV, Statistics
@@ -27,12 +27,17 @@ addprocs(8)
 
     extent = (50, 50)
 
-    nspecies = nbactsp = nphagesp = 5
+    nspecies = nbactsp = nphagesp = 10 
 
     nbact_sp1 = 400
 
     # structures of matrix
-    p = 0.25
+    p = 0.25  # set this depending on the number of sp
+    if nspecies == 5
+        p = 0.5
+    elseif nspecies == 10
+        p = 1.0
+    end
 
     Pnone = 0.0
     Punif = p#/nspecies
@@ -41,7 +46,7 @@ addprocs(8)
     Psec = probs_sec(nspecies, p, p/5)
 
     # general parameters
-    burstsize = 10.0
+    burstsize = nspecies==10 ? 20.0 : 10.0 # set this depending on the number of sp, 20 for 10 sp, 10 for 3 sp
     ΔE = .2
     l = 0.5
     Δbact = l
@@ -71,6 +76,8 @@ for (infecttype, Pinf, Psym) in zip(["reference", "uniform", "unique", "nested",
                         [:Pnone, :Punif, :Punique, :Pnested, :Psec])
 
     println("Simulating $infecttype...")
+
+    infecttype=="nested" || continue
 
     # hacky metaprogramming solution
     "@everywhere Pinf = $Psym" |> Meta.parse |> eval
@@ -119,7 +126,7 @@ for (infecttype, Pinf, Psym) in zip(["reference", "uniform", "unique", "nested",
     println("Making a simulation...")
 
     abm_video(
-        plotsdir("recovery/movie_$(infecttype)_$nspecies.mp4"),
+        plotsdir("recovery/animations/movie_$(infecttype)_$nspecies.mp4"),
         generator(1),
         agent_step!,
         model_step_phages!;
