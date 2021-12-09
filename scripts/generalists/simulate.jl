@@ -7,7 +7,9 @@ michielfmstock@gmail.com
 
 Experiment with the trade-off generalists vs specialists.
 The system has two bacterial species and three phage species.
-Each bacterium has one primary virus. The third phage is a generalist,
+Each bacterium has one primary virus. The third phage is a generalist.
+
+Phages are added randomly in each step.
 
 =#
 
@@ -55,7 +57,8 @@ using InteractiveDynamics, CairoMakie
 end
 
          
-for θ in [0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1]
+for θ in [0, 0.1, 0.2, 0.3, 0.325, 0.35, 0.375, 0.4, 0.425, 0.45,
+                    0.475, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
     println("Simulating θ=$θ...")
 

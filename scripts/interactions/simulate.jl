@@ -1,6 +1,6 @@
 #=
 Created on Friday 09 October 2020
-Last update: Wednesday 1 September 2021
+Last update: Tuesday 14 October 2021
 
 @author: Michiel Stock
 michielfmstock@gmail.com
@@ -17,7 +17,7 @@ using InteractiveDynamics, CairoMakie
 addprocs(8)
 
 @everywhere begin
-    using Pkg; Pkg.activate(".")
+    #using Pkg; Pkg.activate(".")
     using Agents, PhageSim#, ParallelDataTransfer
     using BSON, CSV, Statistics
 
@@ -29,7 +29,13 @@ addprocs(8)
     nspecies = nbactsp = nphagesp = 10
 
     # structures of matrix
-    p = 1.0  # set this depending on the number of sp
+    
+    p = 0.25  # set this depending on the number of sp
+    if nspecies == 5
+        p = 0.5
+    elseif nspecies == 10
+        p = 1.0
+    end
 
     Pnone = 0.0
     Punif = p / nspecies
@@ -38,7 +44,7 @@ addprocs(8)
     Psec = probs_sec(nspecies, p, p/5)
 
     # general parameters
-    burstsize = 10.0 # set this depending on the number of sp, 20 for 10 sp, 10 for 3 sp
+    burstsize = nspecies==10 ? 20.0 : 10.0 # set this depending on the number of sp, 20 for 10 sp, 10 for 3 sp
     ΔE = .2
     l = 0.5
     Δbact = l
@@ -94,7 +100,7 @@ for (infecttype, Pinf, Psym) in zip(["reference", "uniform", "unique", "nested",
     println("Making animation...")
 
     abm_video(
-        plotsdir("interactions/movie_$(infecttype)_$nspecies.mp4"),
+        plotsdir("interactions/animations/movie_$(infecttype)_$nspecies.mp4"),
         init_model(extent, min(extent...)/20; nbacteria, nphages, nbactsp, nphagesp,
                 burstsize, ΔE, l, Δbact, Δphage, pdie, pdecay, seed=1,
                 infection=infmodel(Pinf)),

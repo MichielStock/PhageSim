@@ -1,12 +1,11 @@
 #=
-Created on Friday 16 October 2020
-Last update: Tuesday 5 October 2021
+Created on Thursday 2 September 2021
+Last update: Thursday 2 September 2021
 
 @author: Michiel Stock
 michielfmstock@gmail.com
 
-Assessing the effect of the structure of the interaction matrix on the bacteria-phage matrix.
-File to plot the results.
+Analysing the effect of recovery
 =#
 
 using DrWatson
@@ -19,21 +18,14 @@ using PhageSim: agentcolor, entropy
 
 legend = false
 burnin = 200  # time to let the system settle
-add_total = true
 
 summaries = DataFrame[]
 
 for nspecies in [3, 5, 10]
-
-    pphase = scatter(title="Phase plot ($nspecies species)",
-                        xlabel="number of bacterial cells",
-                        ylabel="number of phage particles", palette=:lightrainbow)
-
-    #scatter!(pphase, [500], [1000], label="starting point")
     println("Loading and processing the results with $nspecies species...")
 
-    for infecttype in ["reference", "uniform", "unique", "secundair", "nested"]
-        results = CSV.read(datadir("interactions/$(infecttype)_$(nspecies).csv"), DataFrame)
+    for infecttype in ["reference", "uniform", "unique", "nested", "secundair"]
+        results = CSV.read(datadir("recovery/$(infecttype)_$(nspecies).csv"), DataFrame)
 
         infecttype = infecttype=="secundair" ? "secondary" : infecttype
         infecttype = infecttype=="reference" ? "control" : infecttype
@@ -48,15 +40,9 @@ for nspecies in [3, 5, 10]
         #corrplot(results[:,5:end-1] |> Matrix, labels=names(results)[5:end-1], size=(1500,1500))
         #savefig(plotsdir("interactions/$(infecttype)_$(nspecies)_corplot.png"))
 
-
-        reps = maximum(results.ensemble)
-
-        sample_to_plot = rand(1:reps)
         
 
-        pphase_entropy = plot(title="Phase plot $infecttype ($nspecies species)",
-                        xlabel="number of bacterial cells",
-                        ylabel="diversity bacteria")
+        reps = maximum(results.ensemble)
         for rep in 1:reps
 
             # plot growth curves
@@ -67,9 +53,6 @@ for nspecies in [3, 5, 10]
             for i in 1:nspecies
                 plot!(pbact, results_rep[!, "count_bacteria_$i"], label="bacteria sp. $i", color=agentcolor(i))
             end
-            if add_total
-                plot!(pbact, results_rep[!, "count_bacteria"], label="bacteria (total)", color="black", ls=:dash)
-            end
             xlabel!(pbact, "time")
             title!(pbact, "Bacteria ($nspecies species)")
 
@@ -77,15 +60,12 @@ for nspecies in [3, 5, 10]
             for i in 1:nspecies
                 plot!(pphage, results_rep[!, "count_phages_$i"], label="phages sp. $i", color=agentcolor(i))
             end
-            if add_total
-                plot!(pphage, results_rep[!, "count_phages"], label="phages (total)", color="black", ls=:dash)
-            end
             xlabel!(pphage, "time")
             title!(pphage, "Phages ($nspecies species)")
 
             plot(pbact, pphage, layout=(2, 1))
 
-            savefig(plotsdir("interactions/growth_curves/$nspecies/growth_$(infecttype)_nsp=$(nspecies)_rep=$rep.pdf"))
+            savefig(plotsdir("recovery/growth_curves/$nspecies/growth_$(infecttype)_nsp=$(nspecies)_rep=$rep.pdf"))
 
             # plot diversity
 
@@ -93,16 +73,8 @@ for nspecies in [3, 5, 10]
             plot!(results_rep[!, :entropy_bacteria], label="entropy bacteria", lw=2)
             plot!(results_rep[!, :entropy_phages], label="entropy phages", lw=2)
 
-            savefig(plotsdir("interactions/entropy/$nspecies/entropy_$(infecttype)_nsp=$(nspecies)_rep=$rep.pdf"))
-
-            # make phase plots
-
-            rep==sample_to_plot && plot!(pphase, results_rep[!, "count_bacteria"], results_rep[!, "count_phages"], label=infecttype, lw=2, alpha=0.8,)#, color="blue")
-            #rep%10==0 && plot!(pphase_entropy, results_rep[!, "count_bacteria"], (2).^results_rep[!, :entropy_bacteria], alpha=0.9, label="")#, color="blue")
+            savefig(plotsdir("recovery/entropy/$nspecies/entropy_$(infecttype)_nsp=$(nspecies)_rep=$rep.pdf"))
         end
-
-        
-        #savefig(pphase_entropy, plotsdir("interactions/phase_plots/$nspecies/phase_entropy_$(infecttype)_nsp=$(nspecies).pdf"))
 
         # check entropy, density etc
 
@@ -124,11 +96,8 @@ for nspecies in [3, 5, 10]
 
         push!(summaries, summary)
     end
-    
-    #scatter!(pphase, [500], [1000], label="starting point")
-    savefig(pphase, plotsdir("interactions/phase_plots/phase_plot_nsp=$(nspecies).pdf"))
 
 end
 
 
-CSV.write(datadir("interactions/summaries.csv"), vcat(summaries...));
+CSV.write(datadir("recovery/summaries.csv"), vcat(summaries...))

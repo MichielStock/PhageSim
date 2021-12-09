@@ -11,6 +11,7 @@ General utilies for modelling.
 using LinearAlgebra
 export agentcolor, agentsize, bacteria, phages
 export probs_nested, probs_sec, probs_unique
+export entropy
 
 agentcolor(a::Agent) = agentcolor(species(a))
 agentcolor(i::Integer) = [:red, :blue, :green, :yellow, :black,
@@ -42,3 +43,4 @@ for i in 1:20
 end
 
 
+entropy(p) = sum(pi -> pi > 0.0 ? pi * log2(pi) : 0.0, p ./ sum(p))
